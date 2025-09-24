@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ตัวนับคะแนนแบดมินตัน</title>
+  <style>
+    :root {
+      --bg: #0f172a;        /* slate-900 */
+      --panel: #111827;     /* gray-900 */
+      --panel-2: #1f2937;   /* gray-800 */
+      --text: #e5e7eb;      /* gray-200 */
+      --text-dim: #cbd5e1;  /* slate-300 */
+      --accent: #22c55e;    /* green-500 */
+      --danger: #ef4444;    /* red-500 */
+      --warning: #f59e0b;   /* amber-500 */
+      --muted: #334155;     /* slate-700 */
+      --shadow: 0 10px 25px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 50% -10%, #1f69df 0%, var(--bg) 45%);
+      color:var(--text); display:flex; flex-direction:column;
+    }
+    header{
+      display:flex; align-items:center; justify-content:center; gap:12px; padding:14px 16px; position:relative;
+    }
+    header h1{margin:0; font-size:clamp(18px, 2.2vw, 26px); font-weight:700; letter-spacing:.3px; color:#fff}
+    .settings-btn{ position:absolute; right:16px; top:50%; transform:translateY(-50%); background:linear-gradient(135deg, #22c55e, #84cc16); color:#0b0f1a; border:none; padding:10px 16px; font-weight:700; border-radius:999px; cursor:pointer; box-shadow:var(--shadow); display:inline-flex; align-items:center; gap:8px; z-index:80 }
+    .settings-btn::before{ content:"⚙️" }
+    /* Tablet tweaks */
+    @media (min-width: 641px) and (max-width: 1024px){
+      .settings-btn{ padding:10px 18px; right:18px }
+    }
+    /* Mobile: turn into FAB at bottom-right, hide text label */
+    @media (max-width: 640px){
+      .settings-btn{ position:fixed; right:16px; bottom:16px; top:auto; transform:none; padding:14px; border-radius:999px; box-shadow: 0 12px 28px rgba(0,0,0,.4); }
+      .settings-btn .label{ display:none }
+      .settings-btn::before{ margin:0 }
+    }
+    .controls{
+      position:absolute; right:16px; display:flex; gap:10px;
+    }
+    .control-btn{
+      background: var(--panel-2); color: var(--text); border:1px solid #263243; padding:8px 12px; border-radius:12px; cursor:pointer;
+    }
+
+    .scoreboard{
+      width:min(1040px, 96%); margin:16px auto; background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
+      border:1px solid #1e293b; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
+    }
+    .score-header{
+      display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:12px; padding:14px; background:rgba(255,255,255,.02);
+      border-bottom:1px solid #223042;
+    }
+    .team-label{opacity:.9; text-align:center; font-weight:600; color:var(--text-dim)}
+    .setpoint{font-weight:700; font-size:14px; color:#a2facf; background:#12322a; border:1px solid #1a473a; padding:6px 10px; border-radius:999px; justify-self:center}
+
+    .arena{
+      position:relative; display:grid; grid-template-columns:1fr 1fr; min-height:55vh; height:calc(100vh - 220px);
+    }
+    .side{ position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; }
+    .side.left{ background: linear-gradient(180deg, #0b1220, #0b1322); border-right:1px solid #1e293b; }
+    .side.right{ background: linear-gradient(180deg, #0b1322, #0b1220); }
+    .side:active{ filter:brightness(1.05); }
+
+    .score{
+      font-size:clamp(64px, 14vw, 180px); font-weight:800; letter-spacing:1px; text-shadow: 0 2px 0 rgba(0,0,0,.3);
+    }
+    .minus-btn{
+      position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+      background:rgba(255,255,255,.06); border:1px solid #243246; color:#e2e8f0; padding:10px 14px; border-radius:12px; cursor:pointer; backdrop-filter: blur(6px);
+    }
+    .minus-btn:hover{ background:rgba(255,255,255,.1)}
+
+    .center-strip{
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      pointer-events:none; text-align:center;
+    }
+    .status-pill{ pointer-events:auto; font-weight:800; padding:6px 12px; border-radius:999px; border:1px solid #334155; background:#0b1220; color:#cbd5e1;}
+    .status-pill.green{ background:#102416; border-color:#1c3b26; color:#86efac }
+    .status-pill.amber{ background:#2b200c; border-color:#3a2a0d; color:#facc15 }
+
+    .footerbar{
+      width:min(1040px, 96%); margin:12px auto 24px; display:flex; justify-content:space-between; align-items:center; gap:12px;
+    }
+    .reset-btn{
+      background:linear-gradient(135deg, #ef4444, #f97316); border:none; color:white; font-weight:800; padding:10px 16px; border-radius:12px; cursor:pointer; box-shadow:var(--shadow);
+    }
+
+    /* Modal / Popup */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; }
+    .modal{ width:min(480px, 92%); background:var(--panel); border:1px solid #263243; border-radius:16px; padding:18px; box-shadow:var(--shadow); }
+    .modal h2{ margin:0 0 12px; font-size:22px; }
+    .form-row{ display:flex; gap:10px; align-items:center; }
+    .form-row input[type="number"]{ flex:1; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; font-size:16px; }
+    .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+    .btn{ padding:10px 14px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer; }
+    .btn.primary{ background:linear-gradient(135deg, #22c55e, #84cc16); color:#0b0f1a; border:none; font-weight:800; }
+
+    /* Toast */
+    .toast{ position:fixed; left:50%; top:20px; transform:translateX(-50%) translateY(-20px); opacity:0; transition:.25s ease; z-index:60; }
+    .toast.show{ transform:translateX(-50%) translateY(0); opacity:1; }
+    .toast .chip{ background:#0b1220; border:1px solid #263243; padding:10px 14px; border-radius:999px; box-shadow:var(--shadow); font-weight:800; }
+
+    /* Winner overlay */
+    .winner{ position:fixed; inset:0; display:none; place-items:center; z-index:70; background:rgba(0,0,0,.75); /* ✅ ให้คลิกทะลุพื้นหลังได้ */ pointer-events:none; }
+    .winner-card{ background:linear-gradient(180deg, #132032, #0b1220); border:1px solid #263243; border-radius:20px; padding:20px 24px; text-align:center; box-shadow:var(--shadow); /* ✅ เปิดรับคลิกเฉพาะการ์ด */ pointer-events:auto; }
+    .winner-card h3{ margin:.2rem 0 0; font-size:28px; }
+    .winner-card p{ margin:.6rem 0 1rem; color:#cbd5e1 }
+    .winner-card .actions{ display:flex; gap:10px; justify-content:center }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MAHA WORLD CHAMPIONSHIP</h1>
+    <button class="settings-btn" id="openSettings" aria-label="เปิดการตั้งค่า"><span class="label">ตั้งค่า</span></button>
+  </header>
+
+  <section class="scoreboard" aria-live="polite" aria-atomic="true">
+    <div class="score-header">
+      <div class="team-label">ทีมซ้าย</div>
+      <div class="setpoint" id="setPointBadge">Set Point: 21</div>
+      <div class="team-label">ทีมขวา</div>
+    </div>
+    <div class="arena" id="arena">
+      <div class="side left" id="leftSide" role="button" aria-label="เพิ่มคะแนนทีมซ้าย">
+        <div class="score" id="scoreLeft">0</div>
+        <button class="minus-btn" id="minusLeft" aria-label="ลบคะแนนทีมซ้าย 1 คะแนน">− ลบ 1</button>
+      </div>
+      <div class="side right" id="rightSide" role="button" aria-label="เพิ่มคะแนนทีมขวา">
+        <div class="score" id="scoreRight">0</div>
+        <button class="minus-btn" id="minusRight" aria-label="ลบคะแนนทีมขวา 1 คะแนน">− ลบ 1</button>
+      </div>
+      <div class="center-strip">
+        <div class="status-pill" id="statusText">แตะด้านซ้าย/ขวาเพื่อเพิ่มคะแนน</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footerbar">
+    <button class="reset-btn" id="resetAll">รีเซ็ตคะแนนทั้งหมด</button>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal">
+      <h2 id="settingsTitle">ตั้งค่า Set Point</h2>
+      <div class="form-row">
+        <label for="setPointInput">จำนวนแต้มที่ต้องการชนะ (เช่น 21 หรือ 11)</label>
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <input type="number" id="setPointInput" min="1" step="1" value="21" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="closeSettings">ยกเลิก</button>
+        <button class="btn primary" id="saveSettings">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast (Deuce) -->
+  <div class="toast" id="toast"><div class="chip" id="toastText">ดีล</div></div>
+
+  <!-- Winner Overlay -->
+  <div class="winner" id="winnerOverlay" aria-hidden="true">
+    <div class="winner-card">
+      <div style="font-size:42px">🏆</div>
+      <h3 id="winnerTitle">ทีมซ้ายชนะ!</h3>
+      <p id="winnerDesc">กดรีเซ็ตเพื่อเริ่มเกมใหม่</p>
+      <div class="actions">
+        <button class="btn" id="closeWinner">ปิด</button>
+        <button class="btn primary" id="restart">รีเซ็ต</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const scoreLeftEl = document.getElementById('scoreLeft');
+    const scoreRightEl = document.getElementById('scoreRight');
+    const leftSide = document.getElementById('leftSide');
+    const rightSide = document.getElementById('rightSide');
+    const minusLeft = document.getElementById('minusLeft');
+    const minusRight = document.getElementById('minusRight');
+    const setPointBadge = document.getElementById('setPointBadge');
+    const statusText = document.getElementById('statusText');
+
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+
+    const settingsModal = document.getElementById('settingsModal');
+    const openSettings = document.getElementById('openSettings');
+    const closeSettings = document.getElementById('closeSettings');
+    const saveSettings = document.getElementById('saveSettings');
+    const setPointInput = document.getElementById('setPointInput');
+    const quick11 = document.getElementById('quick11');
+    const quick21 = document.getElementById('quick21');
+
+    const resetAll = document.getElementById('resetAll');
+
+    const winnerOverlay = document.getElementById('winnerOverlay');
+    const winnerTitle = document.getElementById('winnerTitle');
+    const closeWinner = document.getElementById('closeWinner');
+    const restart = document.getElementById('restart');
+
+    let scores = [0,0];
+    let setPoint = 21;
+    let lastDeuceNotifiedAt = null; // remember the last equal score at which we showed "ดีล"
+
+    function render(){
+      scoreLeftEl.textContent = scores[0];
+      scoreRightEl.textContent = scores[1];
+      setPointBadge.textContent = `Set Point: ${setPoint}`;
+    }
+
+    function openModal(){ settingsModal.style.display = 'flex'; setTimeout(()=>settingsModal.style.opacity=1,0); setPointInput.value = setPoint; }
+    function closeModal(){ settingsModal.style.opacity=0; setTimeout(()=>settingsModal.style.display='none',200); }
+
+    function showToast(msg){
+      toastText.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=> toast.classList.remove('show'), 1800);
+    }
+
+    function showWinner(sideIdx){
+      const who = sideIdx === 0 ? 'ทีมซ้าย' : 'ทีมขวา';
+      winnerTitle.textContent = `${who}ชนะ!`;
+      winnerOverlay.style.display = 'grid';
+      winnerOverlay.setAttribute('aria-hidden','false');
+    }
+    function closeWinnerOverlay(){
+      winnerOverlay.style.display = 'none';
+      winnerOverlay.setAttribute('aria-hidden','true');
+    }
+
+    function checkDeuceAndWin(){
+      const [a,b] = scores;
+      // Deuce condition: tied and both >= setPoint - 1
+      if (a === b && a >= Math.max(setPoint - 1, 0)){
+        if (lastDeuceNotifiedAt !== a){
+          lastDeuceNotifiedAt = a;
+          showToast('ดีล');
+          statusText.textContent = 'ดีล: ต้องชนะ by 2 แต้ม';
+          statusText.classList.add('amber');
+        }
+        return; // don't decide winner while tied
+      }
+
+      // Determine winner
+      const lead = Math.abs(a - b);
+      const maxScore = Math.max(a,b);
+      // const minScore = Math.min(a,b); // not used
+
+      // If both have reached game point threshold (>= setPoint - 1), require a 2-point lead
+      const deucePhase = (a >= setPoint - 1 && b >= setPoint - 1);
+
+      if (deucePhase){
+        if (lead >= 2){
+          const winner = a > b ? 0 : 1;
+          showWinner(winner);
+          statusText.textContent = 'เกมจบ';
+          statusText.classList.remove('amber');
+          statusText.classList.add('green');
+        }
+      } else {
+        // Normal finish: first to reach setPoint wins
+        if (maxScore >= setPoint){
+          const winner = a > b ? 0 : 1;
+          showWinner(winner);
+          statusText.textContent = 'เกมจบ';
+          statusText.classList.add('green');
+        }
+      }
+    }
+
+    function addPoint(side){
+      // Prevent scoring after game over (overlay visible)
+      if (winnerOverlay.style.display === 'grid') return;
+      scores[side]++;
+      render();
+      checkDeuceAndWin();
+    }
+
+    function minusPoint(side){
+      scores[side] = Math.max(0, scores[side]-1);
+      render();
+      // Reset status if we moved away from a previous deuce/win
+      statusText.textContent = 'แตะด้านซ้าย/ขวาเพื่อเพิ่มคะแนน';
+      statusText.classList.remove('amber','green');
+      // Allow deuce toast again if score rolled back below the last deuce announced
+      const eq = Math.min(scores[0], scores[1]);
+      if (lastDeuceNotifiedAt !== null && eq < lastDeuceNotifiedAt){
+        lastDeuceNotifiedAt = null;
+      }
+      // Hide winner overlay if any
+      closeWinnerOverlay();
+    }
+
+    function reset(){
+      scores = [0,0];
+      lastDeuceNotifiedAt = null;
+      render();
+      statusText.textContent = 'แตะด้านซ้าย/ขวาเพื่อเพิ่มคะแนน';
+      statusText.classList.remove('amber','green');
+      closeWinnerOverlay();
+    }
+
+    // Events
+    leftSide.addEventListener('click', (e)=>{
+      if (e.target === minusLeft) return; // avoid double when clicking minus
+      addPoint(0);
+    });
+    rightSide.addEventListener('click', (e)=>{
+      if (e.target === minusRight) return;
+      addPoint(1);
+    });
+
+    minusLeft.addEventListener('click', (e)=>{ e.stopPropagation(); minusPoint(0); });
+    minusRight.addEventListener('click', (e)=>{ e.stopPropagation(); minusPoint(1); });
+
+    resetAll.addEventListener('click', reset);
+
+    openSettings.addEventListener('click', openModal);
+    closeSettings.addEventListener('click', closeModal);
+    saveSettings.addEventListener('click', ()=>{
+      const val = parseInt(setPointInput.value, 10);
+      if (!Number.isFinite(val) || val < 1){
+        showToast('กรุณาใส่ตัวเลขตั้งแต่ 1 ขึ้นไป');
+        return;
+      }
+      setPoint = val;
+      setPointBadge.textContent = `Set Point: ${setPoint}`;
+      closeModal();
+      // When changing set point, re-evaluate state
+      lastDeuceNotifiedAt = null;
+      statusText.textContent = 'ตั้งค่าเรียบร้อย';
+      statusText.classList.remove('amber','green');
+      checkDeuceAndWin();
+    });
+
+    // ✅ ป้องกัน error กรณีไม่มีปุ่มลัด 11/21 ใน DOM
+    if (quick11) quick11.addEventListener('click', ()=>{ setPoint = 11; setPointBadge.textContent = `Set Point: ${setPoint}`; lastDeuceNotifiedAt = null; checkDeuceAndWin(); showToast('ตั้ง Set Point = 11'); });
+    if (quick21) quick21.addEventListener('click', ()=>{ setPoint = 21; setPointBadge.textContent = `Set Point: ${setPoint}`; lastDeuceNotifiedAt = null; checkDeuceAndWin(); showToast('ตั้ง Set Point = 21'); });
+
+    closeWinner.addEventListener('click', closeWinnerOverlay);
+    restart.addEventListener('click', ()=>{ reset(); closeWinnerOverlay(); });
+
+    // Keyboard support: Left/Right Arrow to add; Z/X to minus; Esc to close overlay
+    window.addEventListener('keydown', (e)=>{
+      if (e.key === 'ArrowLeft') addPoint(0);
+      if (e.key === 'ArrowRight') addPoint(1);
+      if (e.key.toLowerCase() === 'z') minusPoint(0);
+      if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'x') minusPoint(1);
+      if (e.key === 'Escape') closeWinnerOverlay();
+    });
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>
